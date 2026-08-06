@@ -21,3 +21,29 @@ func TestTopicID_Equal(t *testing.T) {
 		t.Error("different TopicIDs should not be equal")
 	}
 }
+
+func TestTypeSubscription_IsMatch_MatchingType(t *testing.T) {
+	sub := NewTypeSubscription("task", "coordinator")
+	topic := TopicID{Type: "task", Source: "coordinator"}
+	if !sub.IsMatch(topic) {
+		t.Error("should match when topic type equals subscription type")
+	}
+}
+
+func TestTypeSubscription_IsMatch_NonMatchingType(t *testing.T) {
+	sub := NewTypeSubscription("task", "coordinator")
+	topic := TopicID{Type: "result", Source: "coordinator"}
+	if sub.IsMatch(topic) {
+		t.Error("should not match when topic type differs")
+	}
+}
+
+func TestTypeSubscription_MapToAgent(t *testing.T) {
+	sub := NewTypeSubscription("task", "coordinator")
+	topic := TopicID{Type: "task", Source: "any"}
+	got := sub.MapToAgent(topic)
+	want := AgentID{Type: "coordinator", Key: "default"}
+	if got != want {
+		t.Errorf("MapToAgent() = %v, want %v", got, want)
+	}
+}
