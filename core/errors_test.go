@@ -15,6 +15,7 @@ func TestSentinelErrors_Values(t *testing.T) {
 		{"AgentNotFound", ErrAgentNotFound, "agent not found"},
 		{"ToolNotFound", ErrToolNotFound, "tool not found"},
 		{"ContextCanceled", ErrContextCanceled, "context canceled"},
+		{"NoHandler", ErrNoHandler, "no handler registered"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

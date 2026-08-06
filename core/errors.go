@@ -7,6 +7,7 @@ var (
 	ErrAgentNotFound   = fmt.Errorf("agent not found")
 	ErrToolNotFound    = fmt.Errorf("tool not found")
 	ErrContextCanceled = fmt.Errorf("context canceled")
+	ErrNoHandler       = fmt.Errorf("no handler registered")
 )
 
 // AgentError wraps an error with agent context.

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -144,5 +145,161 @@ func TestBaseAgent_Close(t *testing.T) {
 	agent := NewBaseAgent(AgentID{Type: "coder", Key: "t1"}, "coder", rt)
 	if err := agent.Close(); err != nil {
 		t.Fatalf("Close() error: %v", err)
+	}
+}
+
+func TestBaseAgent_OnMessage_ReturnsErrNoHandler(t *testing.T) {
+	rt := &mockRuntime{}
+	agent := NewBaseAgent(AgentID{Type: "coder", Key: "t1"}, "coder", rt)
+	_, err := agent.OnMessage(context.Background(), "test", MessageContext{})
+	if err == nil {
+		t.Fatal("expected error from BaseAgent.OnMessage")
+	}
+	if !errors.Is(err, ErrNoHandler) {
+		t.Errorf("errors.Is(err, ErrNoHandler) = false, err = %v", err)
+	}
+}
+
+// testMsg is a concrete message type for testing RoutedAgent dispatch.
+type testMsg struct {
+	Content string
+}
+
+func TestRoutedAgent_RegisterRPCHandler_Dispatches(t *testing.T) {
+	rt := &mockRuntime{}
+	id := AgentID{Type: "coder", Key: "t1"}
+	agent := NewRoutedAgent(id, "coder", rt)
+
+	var received testMsg
+	agent.RegisterRPCHandler(testMsg{}, func(_ context.Context, msg any, _ MessageContext) (any, error) {
+		received = msg.(testMsg)
+		return "handled", nil
+	})
+
+	ctx := context.Background()
+	mc := MessageContext{IsRPC: true, Sender: AgentID{Type: "coordinator", Key: "t1"}}
+	result, err := agent.OnMessage(ctx, testMsg{Content: "hello"}, mc)
+	if err != nil {
+		t.Fatalf("OnMessage() error: %v", err)
+	}
+	if result != "handled" {
+		t.Errorf("result = %v, want %q", result, "handled")
+	}
+	if received.Content != "hello" {
+		t.Errorf("received = %q, want %q", received.Content, "hello")
+	}
+}
+
+func TestRoutedAgent_RegisterEventHandler_Dispatches(t *testing.T) {
+	rt := &mockRuntime{}
+	id := AgentID{Type: "coder", Key: "t1"}
+	agent := NewRoutedAgent(id, "coder", rt)
+
+	var called bool
+	agent.RegisterEventHandler(testMsg{}, func(_ context.Context, _ any, _ MessageContext) (any, error) {
+		called = true
+		return nil, nil
+	})
+
+	ctx := context.Background()
+	mc := MessageContext{IsRPC: false, Sender: AgentID{Type: "coordinator", Key: "t1"}}
+	_, err := agent.OnMessage(ctx, testMsg{Content: "event"}, mc)
+	if err != nil {
+		t.Fatalf("OnMessage() error: %v", err)
+	}
+	if !called {
+		t.Error("event handler should have been called")
+	}
+}
+
+func TestRoutedAgent_OnMessage_UnregisteredType(t *testing.T) {
+	rt := &mockRuntime{}
+	id := AgentID{Type: "coder", Key: "t1"}
+	agent := NewRoutedAgent(id, "coder", rt)
+
+	ctx := context.Background()
+	mc := MessageContext{IsRPC: true}
+	_, err := agent.OnMessage(ctx, testMsg{Content: "hello"}, mc)
+	if err == nil {
+		t.Error("expected error for unregistered message type")
+	}
+	if !errors.Is(err, ErrNoHandler) {
+		t.Errorf("errors.Is(err, ErrNoHandler) = false, err = %v", err)
+	}
+}
+
+func TestRoutedAgent_OnMessage_NoMatchingModeHandler(t *testing.T) {
+	rt := &mockRuntime{}
+	id := AgentID{Type: "coder", Key: "t1"}
+	agent := NewRoutedAgent(id, "coder", rt)
+
+	// Register only an event handler
+	agent.RegisterEventHandler(testMsg{}, func(_ context.Context, _ any, _ MessageContext) (any, error) {
+		return "event-handled", nil
+	})
+
+	// Send an RPC message — should get ErrNoHandler
+	ctx := context.Background()
+	mc := MessageContext{IsRPC: true}
+	_, err := agent.OnMessage(ctx, testMsg{Content: "hello"}, mc)
+	if !errors.Is(err, ErrNoHandler) {
+		t.Errorf("error = %v, want ErrNoHandler", err)
+	}
+}
+
+func TestRoutedAgent_MultipleEventHandlers(t *testing.T) {
+	rt := &mockRuntime{}
+	id := AgentID{Type: "coder", Key: "t1"}
+	agent := NewRoutedAgent(id, "coder", rt)
+
+	var callOrder []int
+	agent.RegisterEventHandler(testMsg{}, func(_ context.Context, _ any, _ MessageContext) (any, error) {
+		callOrder = append(callOrder, 1)
+		return nil, nil
+	})
+	agent.RegisterEventHandler(testMsg{}, func(_ context.Context, _ any, _ MessageContext) (any, error) {
+		callOrder = append(callOrder, 2)
+		return nil, nil
+	})
+
+	ctx := context.Background()
+	mc := MessageContext{IsRPC: false}
+	_, err := agent.OnMessage(ctx, testMsg{Content: "event"}, mc)
+	if err != nil {
+		t.Fatalf("OnMessage() error: %v", err)
+	}
+	if len(callOrder) != 2 {
+		t.Fatalf("expected 2 handler calls, got %d", len(callOrder))
+	}
+	if callOrder[0] != 1 || callOrder[1] != 2 {
+		t.Errorf("call order = %v, want [1 2]", callOrder)
+	}
+}
+
+func TestRoutedAgent_RPC_IgnoresEventHandlers(t *testing.T) {
+	rt := &mockRuntime{}
+	id := AgentID{Type: "coder", Key: "t1"}
+	agent := NewRoutedAgent(id, "coder", rt)
+
+	var eventCalled bool
+	agent.RegisterEventHandler(testMsg{}, func(_ context.Context, _ any, _ MessageContext) (any, error) {
+		eventCalled = true
+		return nil, nil
+	})
+	agent.RegisterRPCHandler(testMsg{}, func(_ context.Context, msg any, _ MessageContext) (any, error) {
+		return "rpc-handled", nil
+	})
+
+	ctx := context.Background()
+	mc := MessageContext{IsRPC: true}
+	result, err := agent.OnMessage(ctx, testMsg{Content: "rpc"}, mc)
+	if err != nil {
+		t.Fatalf("OnMessage() error: %v", err)
+	}
+	if result != "rpc-handled" {
+		t.Errorf("result = %v, want %q", result, "rpc-handled")
+	}
+	if eventCalled {
+		t.Error("event handler should not be called for RPC messages")
 	}
 }
