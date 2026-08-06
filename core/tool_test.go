@@ -99,17 +99,13 @@ func TestFunctionTool_RunJSON_RespectsCancellation(t *testing.T) {
 	ct := NewCancellationToken()
 	ct.Cancel()
 
+	// Callback does NOT check cancellation — RunJSON's pre-check should catch it.
 	tool := NewFunctionTool("slow", "Slow tool", ToolSchema{
 		Name:        "slow",
 		Description: "Slow tool",
 		Parameters:  map[string]any{"type": "object"},
-	}, func(_ context.Context, _ json.RawMessage, cancel *CancellationToken) (any, error) {
-		select {
-		case <-cancel.Done():
-			return nil, ErrContextCanceled
-		default:
-			return "done", nil
-		}
+	}, func(_ context.Context, _ json.RawMessage, _ *CancellationToken) (any, error) {
+		return "should not be reached", nil
 	})
 
 	_, err := tool.RunJSON(context.Background(), json.RawMessage(`{}`), ct)

@@ -36,6 +36,14 @@ func (m *mockRuntime) PublishMessage(ctx context.Context, msg any, topic TopicID
 	return nil
 }
 
+func (m *mockRuntime) SendMessageWithCancellationToken(ctx context.Context, msg any, recipient, sender AgentID, ct *CancellationToken) (any, error) {
+	return m.SendMessage(ctx, msg, recipient, sender)
+}
+
+func (m *mockRuntime) PublishMessageWithCancellationToken(ctx context.Context, msg any, topic TopicID, sender AgentID, ct *CancellationToken) error {
+	return m.PublishMessage(ctx, msg, topic, sender)
+}
+
 func (m *mockRuntime) RegisterFactory(agentType string, factory AgentFactory, subs ...Subscription) error {
 	return nil
 }
@@ -301,5 +309,28 @@ func TestRoutedAgent_RPC_IgnoresEventHandlers(t *testing.T) {
 	}
 	if eventCalled {
 		t.Error("event handler should not be called for RPC messages")
+	}
+}
+
+func TestRoutedAgent_RegisterRPCHandler_LastWins(t *testing.T) {
+	rt := &mockRuntime{}
+	id := AgentID{Type: "coder", Key: "t1"}
+	agent := NewRoutedAgent(id, "coder", rt)
+
+	agent.RegisterRPCHandler(testMsg{}, func(_ context.Context, _ any, _ MessageContext) (any, error) {
+		return "first", nil
+	})
+	agent.RegisterRPCHandler(testMsg{}, func(_ context.Context, _ any, _ MessageContext) (any, error) {
+		return "second", nil
+	})
+
+	ctx := context.Background()
+	mc := MessageContext{IsRPC: true, Sender: AgentID{Type: "coordinator", Key: "t1"}}
+	result, err := agent.OnMessage(ctx, testMsg{Content: "hello"}, mc)
+	if err != nil {
+		t.Fatalf("OnMessage() error: %v", err)
+	}
+	if result != "second" {
+		t.Errorf("result = %v, want %q (last registered should win)", result, "second")
 	}
 }

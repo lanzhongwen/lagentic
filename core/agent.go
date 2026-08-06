@@ -31,7 +31,9 @@ type HandlerFunc func(ctx context.Context, msg any, mc MessageContext) (any, err
 // AgentRuntime is the central orchestrator interface.
 type AgentRuntime interface {
 	SendMessage(ctx context.Context, msg any, recipient AgentID, sender AgentID) (any, error)
+	SendMessageWithCancellationToken(ctx context.Context, msg any, recipient AgentID, sender AgentID, ct *CancellationToken) (any, error)
 	PublishMessage(ctx context.Context, msg any, topic TopicID, sender AgentID) error
+	PublishMessageWithCancellationToken(ctx context.Context, msg any, topic TopicID, sender AgentID, ct *CancellationToken) error
 	RegisterFactory(agentType string, factory AgentFactory, subs ...Subscription) error
 	AddSubscription(sub Subscription) error
 }
@@ -103,7 +105,21 @@ func NewRoutedAgent(id AgentID, description string, runtime AgentRuntime) *Route
 // Only one RPC handler per message type is expected; the last registered wins.
 func (a *RoutedAgent) RegisterRPCHandler(msgType any, handler HandlerFunc) {
 	t := reflect.TypeOf(msgType)
-	a.handlers[t] = append(a.handlers[t], handlerEntry{isRPC: true, handler: handler})
+	// Replace any existing RPC handler for this type (last wins).
+	entries := a.handlers[t]
+	replaced := false
+	for i, entry := range entries {
+		if entry.isRPC {
+			entries[i] = handlerEntry{isRPC: true, handler: handler}
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		a.handlers[t] = append(entries, handlerEntry{isRPC: true, handler: handler})
+	} else {
+		a.handlers[t] = entries
+	}
 }
 
 // RegisterEventHandler registers a handler for event messages of the given type.
