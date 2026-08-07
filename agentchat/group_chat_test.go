@@ -147,6 +147,35 @@ func TestBaseGroupChat_Name(t *testing.T) {
 	}
 }
 
+func TestBaseGroupChat_RunStream_SingleRoundTrip(t *testing.T) {
+	agent := &groupMockChatAgent{
+		name:      "echo",
+		responses: []Response{{ChatMessage: NewTextMessage("hello back", "echo")}},
+	}
+	manager := &groupMockManager{speakers: []string{"echo"}}
+	termination := MaxTurnTermination(2)
+
+	team := NewBaseGroupChat(
+		"test-team",
+		[]ChatAgent{agent},
+		manager,
+		termination,
+	)
+
+	ch, err := team.RunStream(context.Background(), "hello", nil)
+	if err != nil {
+		t.Fatalf("RunStream() error: %v", err)
+	}
+
+	var events []AgentEvent
+	for evt := range ch {
+		events = append(events, evt)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected at least one event from RunStream")
+	}
+}
+
 func TestTeam_Interface(t *testing.T) {
 	var _ Team = NewBaseGroupChat("team", nil, nil, nil)
 }
