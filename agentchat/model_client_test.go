@@ -6,17 +6,17 @@ import (
 )
 
 func TestLLMMessageRole_Values(t *testing.T) {
-	if LLMMessageRoleSystem != "system" {
-		t.Errorf("LLMMessageRoleSystem = %q, want %q", LLMMessageRoleSystem, "system")
+	if string(LLMMessageRoleSystem) != "system" {
+		t.Errorf("LLMMessageRoleSystem = %q, want %q", string(LLMMessageRoleSystem), "system")
 	}
-	if LLMMessageRoleUser != "user" {
-		t.Errorf("LLMMessageRoleUser = %q, want %q", LLMMessageRoleUser, "user")
+	if string(LLMMessageRoleUser) != "user" {
+		t.Errorf("LLMMessageRoleUser = %q, want %q", string(LLMMessageRoleUser), "user")
 	}
-	if LLMMessageRoleAssistant != "assistant" {
-		t.Errorf("LLMMessageRoleAssistant = %q, want %q", LLMMessageRoleAssistant, "assistant")
+	if string(LLMMessageRoleAssistant) != "assistant" {
+		t.Errorf("LLMMessageRoleAssistant = %q, want %q", string(LLMMessageRoleAssistant), "assistant")
 	}
-	if LLMMessageRoleTool != "tool" {
-		t.Errorf("LLMMessageRoleTool = %q, want %q", LLMMessageRoleTool, "tool")
+	if string(LLMMessageRoleTool) != "tool" {
+		t.Errorf("LLMMessageRoleTool = %q, want %q", string(LLMMessageRoleTool), "tool")
 	}
 }
 

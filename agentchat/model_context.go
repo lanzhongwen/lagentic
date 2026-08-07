@@ -1,8 +1,14 @@
 package agentchat
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // ChatCompletionContext manages per-agent conversation history.
+// Note: SaveState/LoadState use map[string]any with Go type assertions,
+// suitable for in-memory state transfer only. JSON serialization is not
+// supported — a persistence-compatible format will be added in a future iteration.
 type ChatCompletionContext interface {
 	AddMessage(msg LLMMessage) error
 	GetMessages() []LLMMessage
@@ -13,6 +19,7 @@ type ChatCompletionContext interface {
 
 // UnboundedChatCompletionContext stores messages without limit.
 type UnboundedChatCompletionContext struct {
+	mu       sync.RWMutex
 	messages []LLMMessage
 }
 
@@ -24,26 +31,36 @@ func NewUnboundedChatCompletionContext() *UnboundedChatCompletionContext {
 }
 
 func (c *UnboundedChatCompletionContext) AddMessage(msg LLMMessage) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.messages = append(c.messages, msg)
 	return nil
 }
 
 func (c *UnboundedChatCompletionContext) GetMessages() []LLMMessage {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.messages
 }
 
 func (c *UnboundedChatCompletionContext) Clear() error {
-	c.messages = c.messages[:0]
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.messages = nil
 	return nil
 }
 
 func (c *UnboundedChatCompletionContext) SaveState() (map[string]any, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return map[string]any{
 		"messages": c.messages,
 	}, nil
 }
 
 func (c *UnboundedChatCompletionContext) LoadState(state map[string]any) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if msgs, ok := state["messages"]; ok {
 		typed, ok := msgs.([]LLMMessage)
 		if !ok {
@@ -56,6 +73,7 @@ func (c *UnboundedChatCompletionContext) LoadState(state map[string]any) error {
 
 // BufferedChatCompletionContext keeps only the last N messages.
 type BufferedChatCompletionContext struct {
+	mu       sync.RWMutex
 	messages []LLMMessage
 	limit    int
 }
@@ -72,6 +90,8 @@ func NewBufferedChatCompletionContext(limit int) *BufferedChatCompletionContext 
 }
 
 func (c *BufferedChatCompletionContext) AddMessage(msg LLMMessage) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.messages = append(c.messages, msg)
 	if len(c.messages) > c.limit {
 		c.messages = c.messages[len(c.messages)-c.limit:]
@@ -80,15 +100,21 @@ func (c *BufferedChatCompletionContext) AddMessage(msg LLMMessage) error {
 }
 
 func (c *BufferedChatCompletionContext) GetMessages() []LLMMessage {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.messages
 }
 
 func (c *BufferedChatCompletionContext) Clear() error {
-	c.messages = c.messages[:0]
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.messages = nil
 	return nil
 }
 
 func (c *BufferedChatCompletionContext) SaveState() (map[string]any, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return map[string]any{
 		"messages": c.messages,
 		"limit":    c.limit,
@@ -96,6 +122,8 @@ func (c *BufferedChatCompletionContext) SaveState() (map[string]any, error) {
 }
 
 func (c *BufferedChatCompletionContext) LoadState(state map[string]any) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if msgs, ok := state["messages"]; ok {
 		typed, ok := msgs.([]LLMMessage)
 		if !ok {

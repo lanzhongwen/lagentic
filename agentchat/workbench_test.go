@@ -45,8 +45,8 @@ func TestStaticWorkbench_CallTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CallTool() error: %v", err)
 	}
-	// The tool returns string(args) = `{"msg":"hi"}`, which json.Marshal encodes as a JSON string.
-	want := `"{\"msg\":\"hi\"}"`
+	// The tool returns string(args) = `{"msg":"hi"}`, fmt.Sprintf("%v") preserves it directly.
+	want := `{"msg":"hi"}`
 	if result.Content != want {
 		t.Errorf("result.Content = %q, want %q", result.Content, want)
 	}
@@ -88,8 +88,8 @@ func TestStaticWorkbench_RegisterDuplicate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CallTool() error: %v", err)
 	}
-	if result.Content != `"v2"` {
-		t.Errorf("result.Content = %q, want %q", result.Content, `"v2"`)
+	if result.Content != "v2" {
+		t.Errorf("result.Content = %q, want %q", result.Content, "v2")
 	}
 }
 

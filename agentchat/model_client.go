@@ -5,7 +5,7 @@ import (
 )
 
 // LLMMessageRole constants for message roles.
-type LLMMessageRole = string
+type LLMMessageRole string
 
 const (
 	LLMMessageRoleSystem    LLMMessageRole = "system"

@@ -59,10 +59,5 @@ func (w *StaticWorkbench) CallTool(ctx context.Context, name string, args json.R
 		return core.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
-	// Marshal the result to string for ToolResult.Content.
-	content, marshalErr := json.Marshal(result)
-	if marshalErr != nil {
-		return core.ToolResult{Content: fmt.Sprintf("%v", result)}, nil
-	}
-	return core.ToolResult{Content: string(content)}, nil
+	return core.ToolResult{Content: fmt.Sprintf("%v", result)}, nil
 }
